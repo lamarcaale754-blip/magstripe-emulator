@@ -1,23 +1,36 @@
 # Magstripe Emulator
 
-Arduino firmware that emulates a magnetic-stripe card swipe. It encodes Track 2 data using F2F (Aiken biphase) encoding with odd parity and an LRC check character, then drives a hand-wound enameled-wire coil through an H-bridge so a standard magstripe reader reads it as a real swipe.
+Arduino firmware for a bench magnetic-stripe waveform emulator. It encodes Track 2 data using F2F (Aiken biphase), odd parity, and an LRC character, then drives a coil through an L293D H-bridge.
 
-This was the first bench step of the DynamiStripe card project: proving the read side before working on rewriting a stripe.
+This was an early bench step in the DynamiStripe project. The published sketch is the **owner-confirmed working edition**, imported from `WORKINGCODEMAGEMULATOR.ino` on October 21, 2026. It replaces the earlier Timer1/direct-port speed-sweep edition.
 
-## Hardware
+## Hardware and pin mapping
 
-- Arduino Uno or Nano (ATmega328P, 16 MHz)
-- H-bridge driver chip: IN1 on D9, IN2 on D10
-- Hand-wound enameled-wire coil across the H-bridge outputs
-- Onboard LED on D13 shows which swipe speed is playing
+- Arduino Uno/Nano-class board used for the bench prototype.
+- L293D H-bridge: IN1 on **D9**, IN2 on **D10**.
+- Status LED on **D11** (an external LED with an appropriate resistor; not the Uno's D13 onboard LED).
+- Coil connected through the H-bridge, with a shared ground and a supply/coil combination within the driver's electrical ratings. The Arduino pins drive logic inputs, not the coil directly.
 
-## How it works
+## Working edition behavior
 
-- Track 2 characters are encoded LSB-first as 5-bit groups (4 data bits + odd parity), followed by the LRC.
-- 20 leading zero characters give the reader time to lock onto the clock before the start sentinel.
-- Bit timing uses Timer1 with interrupts disabled, and the coil is switched with direct port writes for consistent timing.
-- The sketch cycles through six simulated swipe speeds (40 to 120 in/s). The LED blinks once for the slowest speed up to six times for the fastest.
+- 22 raw zero preamble bits, followed by Track 2 characters sent least-significant bit first with odd parity.
+- Four-column XOR LRC plus odd parity, followed by 30 zero postamble bits.
+- `digitalWrite` switches coil polarity with interrupts disabled during transmission.
+- Nominal bit-cell delay is **2666 µs**, corresponding approximately to 5 in/s at 75 bits/in. Function-call overhead affects actual timing; this is not a precision waveform measurement.
+- Both drive pins go low after transmission; the loop pauses for four seconds before repeating.
 
-## Testing
+## Build and upload
 
-Bench-tested with a commercial magstripe reader using fictional test data only. The included track uses the standard Visa test number 4111 1111 1111 1111. Never used with real card data or a live payment terminal.
+Open `magstripe_emulator/magstripe_emulator.ino` in Arduino IDE, select the board and port that match your hardware, and build/upload. No external Arduino libraries are required.
+
+```sh
+arduino-cli compile --fqbn arduino:avr:uno magstripe_emulator
+```
+
+## Provenance and testing
+
+The owner identified `WORKINGCODEMAGEMULATOR.ino` as the edition last confirmed working with the reader. This update preserves that sketch's firmware logic, pin assignments, and timing. The **only source substitution** is the hardcoded track payload, replaced with a fictional test payload using the standard test number `4111111111111111`.
+
+The published edition compiles for Arduino Uno with Arduino AVR Boards 1.8.7: 1,524 bytes of program storage and 651 bytes of global-variable memory. No new physical reader test was performed as part of this publication update. The sanitized payload should be validated on the same authorized bench setup. The fixed-size encoding buffer is intended for the included fixed payload; this is not a general untrusted-input parser.
+
+Use only with test data and equipment you own or are authorized to test. No private source-history archive or original track payload is included in this update.
